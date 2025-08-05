@@ -1,0 +1,38 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django Migrations (ignore all except __init__.py)
+**/migrations/*
+!**/migrations/__init__.py
+
+# Environments
+.env
+venv/
+ENV/
+env/
+
+# Database
+*.sqlite3
+
+# Logs
+*.log
+
+# Media
+media/
+
+# IDEs and Editors
+.vscode/
+.idea/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Python dependency files (optional)
+pip-wheel-metadata/
+*.egg-info/
+
+# Git
+*.swp
