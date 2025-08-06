@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Category, Item , Cart ,CartItem , Address , OrderItem
+from .models import Category, Item , Cart ,CartItem , Address , OrderItem ,Order
+from django.contrib.auth.models import User
 
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -36,8 +37,25 @@ class CartItemSerializer(serializers.ModelSerializer):
             "stock_count": obj.item.stock_count
         }
 class AddressSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = Address
         fields = "__all__"
         read_only_fields = ['id', 'user', 'created_at']
+
+class Userserializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email']
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    item = ItemSerializer()
+    class Meta:
+        model=OrderItem
+        fields= ['id','item','quantity','rate'] 
+
+class OrderSerializer(serializers.ModelSerializer):
+    order_items=OrderItemSerializer(many=True)
+    user=Userserializer
+    class Meta:
+        model = Order
+        fields = ['id', 'total_amount', 'user', 'order_status','order_items']

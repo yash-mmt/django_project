@@ -52,6 +52,13 @@ class Address(models.Model):
         return f"{self.address_line}, {self.city}"
 
 class Order(models.Model):
+    ORDER_STATUS_CHOICES=[
+        ('Pending', 'Pending'),
+        ('Shipped', 'Shipped'),
+        ('Delivered', 'Delivered'),
+        ('Cancelled', 'Cancelled'),
+    ]
+    order_status=models.CharField(max_length=20,choices=ORDER_STATUS_CHOICES,default="pending")
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
     cart = models.ForeignKey('Cart', on_delete=models.CASCADE, related_name='orders')
@@ -74,3 +81,4 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.item.description} x {self.quantity}"
+    

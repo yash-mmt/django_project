@@ -9,6 +9,7 @@ urlpatterns = [
     path('cart/', CartAPIView.as_view(), name='cart-add'),
     path('cart/items/<uuid:pk>/', CartAPIView.as_view(), name='cart-item-detail'),
     path('order/',OrderAPIView.as_view(),name="order"),
+    path('order/<uuid:pk>/',OrderAPIView.as_view(),name="order_status"),
     path("address/",AddressAPIView.as_view(),name="address"),
     path("address/<uuid:pk>/",AddressAPIView.as_view(),name="address_update"),
     path('order/<uuid:order_id>/invoice/', InvoicePDFAPIView.as_view(), name='invoice-pdf'),
