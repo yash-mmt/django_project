@@ -215,11 +215,36 @@ class OrderAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
-    # def get(self,request):
-    #     if not request.user.is_superuser:
-    #         return Response({"message":"access denied for user"},status=status.HTTP_401_Unauthorized)
-        
+    def get(self, request):
+        if request.user.is_superuser:
+            orders = Order.objects.prefetch_related('order_items__item').all()
+        else:
+            orders = Order.objects.prefetch_related('order_items__item').filter(user=request.user)
 
+        data = []
+
+        for order in orders:
+            order_data = {
+                "order_id": order.pk,
+                "total_bill_amount": order.total_amount,
+                "user": order.user.username  
+            }
+
+            items = []
+            for order_item in order.order_items.all():
+                items.append({
+                    "item": order_item.id,
+                    "name": order_item.item.description,
+                    "rate": order_item.rate,
+                    "quantity": order_item.quantity
+                })
+
+            order_data["items"] = items
+            data.append(order_data)
+
+        return Response({"data": data}, status=status.HTTP_200_OK)
+            
+        
 
     def post(self, request):
         address_id = request.data.get('address_id')

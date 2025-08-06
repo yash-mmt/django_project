@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Item , Cart ,CartItem , Address
+from .models import Category, Item , Cart ,CartItem , Address , OrderItem
 
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,5 +41,3 @@ class AddressSerializer(serializers.ModelSerializer):
         model = Address
         fields = "__all__"
         read_only_fields = ['id', 'user', 'created_at']
-
-        
