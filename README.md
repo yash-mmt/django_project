@@ -70,11 +70,11 @@ This is a simple e-commerce backend built with **Django REST Framework** that su
 - **ReportLab** — PDF generation library (for Invoices).
 
 ### Database
-- **PostgreSQL**
+- **PostgreSQL** : dbdiagram link : https://dbdiagram.io/d/ecom-689337f7dd90d17865b44535
 
 ### API Documentation
 - **DRF Browsable API** — Built-in interactive API.
-- **Postman** 
+- **swagger** 
 
 ### Environment & Dependency Management
 - **Python Virtual Environment (venv)** — Isolated environment.
