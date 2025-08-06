@@ -251,19 +251,48 @@ class OrderAPIView(APIView):
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-    def patch(self,request,pk):
+    def patch(self, request, pk):
         if request.user.is_superuser:
-            order=get_object_or_404(Order,pk=pk,user=request.data.get("user_id"))
+            user_id = request.data.get("user_id")
+            if not user_id:
+                return Response({"error": "user_id is required for superuser"}, status=status.HTTP_400_BAD_REQUEST)
+            order = get_object_or_404(Order, pk=pk, user__id=user_id)
         else:
-            order=get_object_or_404(Order,pk=pk,user=request.user)
+            order = get_object_or_404(Order, pk=pk, user=request.user)
 
-        serializer=OrderSerializer(order,data=request.data,partial=True)
+        new_status = request.data.get("order_status")
+        if new_status == "Cancelled":
+            if order.order_status not in ["Pending", "Shipped"]:
+                return Response({f"message": f"Your order is already {order.order_status}."}, status=status.HTTP_400_BAD_REQUEST)
+
+            for cart_item in order.cart.cart_items.all():
+                item = cart_item.item
+                item.stock_count += cart_item.quantity
+                item.save()
+
+        elif not request.user.is_superuser:
+            return Response({"error": "You are not allowed to change status other than 'Cancelled'."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = OrderSerializer(order, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-                     
 
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def delete(self, request, pk):
+        if request.user.is_superuser:
+            user_id = request.data.get("user_id")
+            if not user_id:
+                return Response({"detail": "user_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            order = get_object_or_404(Order, pk=pk, user=user_id)
+        else:
+            order = get_object_or_404(Order, pk=pk, user=request.user)
+
+        order.delete()
+        return Response({"detail": "Order deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+    
     def post(self, request):
         address_id = request.data.get('address_id')
 
