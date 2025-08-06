@@ -66,7 +66,7 @@ class Order(models.Model):
     total_amount = models.FloatField(default=0)
     is_paid = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    discounted_amount = models.FloatField(default=0.0)
     def __str__(self):
         return f"Order {self.id} by {self.user.username}"
 
