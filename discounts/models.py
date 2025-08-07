@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 
 class Coupon(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    code = models.CharField(max_length=50, unique=True)
+    code = models.CharField(max_length=50)
     discount_percent = models.FloatField(help_text="Discount Percentage")
     valid_from = models.DateTimeField()
     valid_to = models.DateTimeField()

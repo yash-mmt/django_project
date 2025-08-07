@@ -1,14 +1,35 @@
 from rest_framework import serializers
 from .models import Coupon , CouponUsage
+from django.utils import timezone
 
 
 class CouponSerializer(serializers.ModelSerializer):
-   
-   class Meta:
-      model = Coupon
-      fields = ["id","code","discount_percent","valid_from","valid_to","usage_limit","usage_count","is_active"] 
+    class Meta:
+        model = Coupon
+        fields = ["id","code","discount_percent","valid_from","valid_to","usage_limit","usage_count","is_active"] 
+    
+    def validate(self, data):
+        valid_from = data.get("valid_from")
+        valid_to = data.get("valid_to")
 
+        if valid_from and valid_to and valid_from > valid_to:
+            raise serializers.ValidationError({
+                "valid_to": "valid_to must be after or equal to valid_from."
+            })
 
+        code = data.get("code")
+        now = timezone.now()
+
+        if code:
+            existing_coupons = Coupon.objects.filter(code=code).order_by('-created_at')
+            for coupon in existing_coupons:
+                if coupon.is_active and coupon.valid_to >= now:
+                    if coupon.usage_limit == 0 or coupon.usage_count < coupon.usage_limit:
+                        raise serializers.ValidationError({
+                            "code": "An active, valid, and unused coupon with this code already exists."
+                        })
+
+        return data
 class CouponApplySerializer(serializers.Serializer):
     coupon_code = serializers.CharField()
 
@@ -31,3 +52,6 @@ class CouponApplySerializer(serializers.Serializer):
         coupon = Coupon.objects.get(code=data['coupon_code'])
         data['coupon'] = coupon
         return data
+
+class CouponValidateSerializer(serializers.Serializer):
+    code = serializers.CharField()

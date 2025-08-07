@@ -13,8 +13,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet
-
-
+from discounts.models import Coupon
+from discounts.utils import validate_code
 class ItemAPI(APIView):
     authentication_classes = [JWTAuthentication]
 
@@ -216,33 +216,6 @@ class OrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # if request.user.is_superuser:
-        #     orders = Order.objects.prefetch_related('order_items__item').all()
-        # else:
-        #     orders = Order.objects.prefetch_related('order_items__item').filter(user=request.user)
-
-        # data = []
-
-        # for order in orders:
-        #     order_data = {
-        #         "order_id": order.pk,
-        #         "total_bill_amount": order.total_amount,
-        #         "user": order.user.username  
-        #     }
-
-        #     items = []
-        #     for order_item in order.order_items.all():
-        #         items.append({
-        #             "item": order_item.id,
-        #             "name": order_item.item.description,
-        #             "rate": order_item.rate,
-        #             "quantity": order_item.quantity
-        #         })
-
-        #     order_data["items"] = items
-        #     data.append(order_data)
-
-        # return Response({"data": data}, status=status.HTTP_200_OK)
         if request.user.is_superuser:
             orders = Order.objects.select_related('user').prefetch_related('order_items__item').all()
         else:
@@ -295,6 +268,19 @@ class OrderAPIView(APIView):
     
     def post(self, request):
         address_id = request.data.get('address_id')
+        coupon_code = request.data.get('coupon_code')
+
+        discount_percent = 0
+        coupon = None
+
+        if(coupon_code):
+            coupon = Coupon.objects.filter(is_active=True, code=coupon_code).order_by
+            ("-created_at").first()
+
+            is_valid, result = validate_code(coupon)
+            if not is_valid:
+                return Response({"message": result}, status=status.HTTP_400_BAD_REQUEST)
+            discount_percent = coupon.discount_percent
 
         if address_id:
             address = get_object_or_404(Address, id=address_id, user=request.user)
@@ -310,40 +296,48 @@ class OrderAPIView(APIView):
         if not cart_items.exists():
             return Response({"error": "Cart is empty."}, status=status.HTTP_400_BAD_REQUEST)
 
-        total_amount = 0.0
+        original_total = 0.0
 
         with transaction.atomic():
             order = Order.objects.create(
                 user=request.user,
                 cart=cart,
                 address=address,
-                total_amount=0,  
-                is_paid=False
+                total_amount=0,
+                is_paid=False,
+                discounted_amount=0.0
             )
 
             for cart_item in cart_items:
                 item = cart_item.item
                 if item.stock_count < cart_item.quantity:
                     transaction.set_rollback(True)
-                    return Response({
-                        "error": f"Not enough stock for {item.description}."
-                    }, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({"error": f"Not enough stock for {item.description}."}, status=400)
 
                 item.stock_count -= cart_item.quantity
                 item.save()
 
                 line_total = cart_item.quantity * item.rate
-                total_amount += line_total
+                original_total += line_total
 
                 OrderItem.objects.create(
                     order=order,
                     item=item,
                     quantity=cart_item.quantity,
                     rate=item.rate,
-                    line_total=line_total
+                    line_total=round(line_total, 2)
                 )
 
-            order.total_amount = total_amount
+            # Apply discount
+            discount_value = round(original_total * discount_percent / 100, 2) if discount_percent else 0.0
+            final_total = round(original_total - discount_value, 2)
+
+            if coupon:
+                coupon.usage_count += 1
+                coupon.save()
+
+            order.total_amount = final_total
+            order.discounted_amount = discount_value
             order.save()
 
             cart_items.delete()
@@ -351,7 +345,10 @@ class OrderAPIView(APIView):
         return Response({
             "message": "Order placed successfully.",
             "order_id": str(order.id)[:8].upper(),
-            "total_amount": total_amount
+            "total_amount": round(original_total, 2),
+            "discount_percent": discount_percent,
+            "discounted_amount": discount_value,
+            "final_amount": final_total
         }, status=status.HTTP_201_CREATED)
 
 
@@ -360,7 +357,7 @@ class InvoicePDFAPIView(APIView):
 
     def get(self, request, order_id):
         order = get_object_or_404(Order, id=order_id, user=request.user)
-        order_items = order.order_items.select_related('item').all()  
+        order_items = order.order_items.select_related('item').all()
 
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=A4)
@@ -381,6 +378,7 @@ class InvoicePDFAPIView(APIView):
 
         table_data = [["Item Description", "Quantity", "Rate (₹)", "Line Total (₹)"]]
 
+        original_total = 0.0
         for order_item in order_items:
             item = order_item.item
             table_data.append([
@@ -389,8 +387,15 @@ class InvoicePDFAPIView(APIView):
                 f"{order_item.rate:.2f}",
                 f"{order_item.line_total:.2f}"
             ])
+            original_total += order_item.line_total
 
-        table_data.append(["", "", "Grand Total", f"{order.total_amount:.2f}"])
+        table_data.append(["", "", "Subtotal", f"{original_total:.2f}"])
+
+        if order.discounted_amount > 0:
+            discount = order.discounted_amount
+            table_data.append(["", "", "Discount", f"-{discount:.2f}"])
+        
+        table_data.append(["", "", "Total Payable", f"{order.total_amount:.2f}"])
 
         table = Table(table_data, hAlign='LEFT', colWidths=[200, 80, 80, 80])
         table.setStyle(TableStyle([
